@@ -11,9 +11,12 @@ using namespace std;
 
 void PlateAngleCorrection::Correction(cv::Mat &SrcImg, cv::Mat &Dstimg) {
   Mat gray_img, bw_img, thr_img, edge_img;
+  Mat sobelX, sobelY; 
   //show the image on screen
   //namedWindow("OpenCV srcImage", 0);
   preprocess(SrcImg, gray_img, bw_img);
+
+  //equalizeHist( gray_img, gray_img );
 
   //Mat element(5,5,CV_8U,Scalar(255));
   //imshow("OpenCV bw_img", bw_img);
@@ -21,17 +24,25 @@ void PlateAngleCorrection::Correction(cv::Mat &SrcImg, cv::Mat &Dstimg) {
   Mat element(3,3,CV_8U,Scalar(255));  
   erode(bw_img,bw_img,element);
   //dilate(bw_img,bw_img,element);
+  Sobel(gray_img,sobelX,CV_8U,1,0);
+  Sobel(gray_img,sobelY,CV_8U,0,1);
+
+  edge_img= abs(sobelX)+abs(sobelY);  
 
   //blur( bw_img, edge_img, Size(3,3) );
-  //Laplacian( gray_img, edge_img, CV_32F, 3, 1, 0, BORDER_DEFAULT) ;
+  //sobel(gray_img,edge_img,1,0);
+  //Canny(gray_img, edge_img, 0, 0, 3);
+  //Laplacian( gray_img, edge_img, 5) ;
+  //convertScaleAbs(edge_img, edge_img);
 
   //erode(edge_img,edge_img,element);
   //dilate(edge_img,edge_img,element);  
   
   //imshow("OpenCV bn_img", bw_img);
-  //imshow("OpenCV edge_img", edge_img);
+  //
+  imshow("OpenCV edge_img", edge_img);
 
-  gray_img = gray_img - bw_img - edge_img;
+  gray_img = gray_img - edge_img ;
   line(gray_img, Point(0, 0), Point(gray_img.cols- 1, 0), CV_RGB(0,0,0), 2 );
   line(gray_img, Point(0, 0), Point(0, gray_img.rows- 1), CV_RGB(0,0,0), 2 );
   line(gray_img, Point(gray_img.cols- 1, 0), Point(gray_img.cols- 1, gray_img.rows- 1), CV_RGB(0,0,0), 2 );

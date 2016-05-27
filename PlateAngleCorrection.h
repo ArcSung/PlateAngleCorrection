@@ -15,7 +15,7 @@ using namespace cv;
 class PlateAngleCorrection{
 
 public:
-	void Correction(cv::Mat &SrcImg, cv::Mat &Dstimg);
+	bool Correction(cv::Mat &SrcImg, cv::Mat &Dstimg);
 
 	void rotateImage(const Mat &input, Mat &output, double alpha, double beta, double gamma, double dx, double dy, double dz, double f);
 
@@ -28,7 +28,7 @@ private:
 
 	std::vector<Point2f> ReverserMat(std::vector<Point2f> input);
 
-	void FindPlateCorner(Mat image, Mat mgray, Mat bin_img);
+	bool FindPlateCorner(Mat image, Mat mgray, Mat bin_img);
 
 	Point2f L1, L2, L3, L4;
 	

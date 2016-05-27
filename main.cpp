@@ -37,6 +37,7 @@ int main(int argc, char** argv)
     	resize( srcImage, srcImage, Size(1280, 720) );
     	imshow("argv[i]", srcImage);
     	std::vector<PossiblePlate> vectorOfPossiblePlates = detectPlatesInScene(srcImage);
+    	cv::destroyAllWindows();
     	//_PlateAngle->Correction(srcImage, dst_img);
     	//waitKey(0);
     }	

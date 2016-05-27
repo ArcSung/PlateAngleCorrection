@@ -8,8 +8,10 @@
 using namespace cv;
 using namespace std;
 
+#define Debug_show true
 
-void PlateAngleCorrection::Correction(cv::Mat &SrcImg, cv::Mat &Dstimg) {
+
+bool PlateAngleCorrection::Correction(cv::Mat &SrcImg, cv::Mat &Dstimg) {
   Mat gray_img, bw_img, thr_img, edge_img;
   Mat sobelX, sobelY; 
   //show the image on screen
@@ -40,7 +42,6 @@ void PlateAngleCorrection::Correction(cv::Mat &SrcImg, cv::Mat &Dstimg) {
   
   //imshow("OpenCV bn_img", bw_img);
   //
-  imshow("OpenCV edge_img", edge_img);
 
   gray_img = gray_img - edge_img ;
   line(gray_img, Point(0, 0), Point(gray_img.cols- 1, 0), CV_RGB(0,0,0), 2 );
@@ -49,16 +50,19 @@ void PlateAngleCorrection::Correction(cv::Mat &SrcImg, cv::Mat &Dstimg) {
   line(gray_img, Point(0, gray_img.rows - 1), Point(gray_img.cols- 1, gray_img.rows- 1), CV_RGB(0,0,0), 2 );
 
   threshold(gray_img, thr_img, 0, 255, CV_THRESH_BINARY | CV_THRESH_OTSU);
-  //imshow("OpenCV gray_img", gray_img);
-  imshow("OpenCV thr_img", thr_img);
 
+#if Debug_show  
+  //imshow("OpenCV gray_img", gray_img);
+  imshow("OpenCV edge_img", edge_img);
+  imshow("OpenCV thr_img", thr_img);
   imshow("OpenCV gray_img", gray_img);
   //imshow("OpenCV bw_img", bw_img);
   //waitKey(0);
+#endif  
 
   //erode(thr_img,thr_img,element);
-  FindPlateCorner(SrcImg, gray_img, thr_img);
-
+  if(!FindPlateCorner(SrcImg, gray_img, thr_img))
+    return false;
 
 
   /* perspective matrix*/
@@ -70,7 +74,11 @@ void PlateAngleCorrection::Correction(cv::Mat &SrcImg, cv::Mat &Dstimg) {
   int ROIW = brx - tlx - 1;
   int ROIH = bry - tly - 1;
 
+  if(ROIW <= 0 || ROIH <= 0)
+    return false;
+
   Mat SrcROI = SrcImg(Rect(tlx, tly, ROIW, ROIH));
+
   //設定變換[之前]與[之後]的坐標 (左上,左下,右下,右上)
   cv::Point2f pts1[] = {L1,L4,L3,L2};
   cv::Point2f pts2[] = {cv::Point2f(0,0),cv::Point2f(0,ROIH),cv::Point2f(ROIW,ROIH),cv::Point2f(ROIW,0)};
@@ -80,11 +88,7 @@ void PlateAngleCorrection::Correction(cv::Mat &SrcImg, cv::Mat &Dstimg) {
                 // 變換
   cv::warpPerspective(SrcImg, Dstimg, perspective_matrix, Size(ROIW, ROIH), cv::INTER_LINEAR);
 
-  //imshow("OpenCV srcImage", SrcImg);
-  //imshow("OpenCV dst_img", Dstimg);
-    //imshow("OpenCV gray_img", gray_img);
-    //imshow("OpenCV bn_img", bw_img);
-
+  return true;
 }
 
 
@@ -198,7 +202,7 @@ void PlateAngleCorrection::rotateImage(const Mat &input, Mat &output, double alp
     return(tempMat);
   }
 
-  void PlateAngleCorrection::FindPlateCorner(Mat image, Mat mgray, Mat bin_img){
+  bool PlateAngleCorrection::FindPlateCorner(Mat image, Mat mgray, Mat bin_img){
     //cv::threshold(mgray, bin_img, 0, 255, cv::THRESH_BINARY|cv::THRESH_OTSU);
     std::vector<std::vector<cv::Point> > contours;
     std::vector<cv::Vec4i> hierarchy;
@@ -213,16 +217,17 @@ void PlateAngleCorrection::rotateImage(const Mat &input, Mat &output, double alp
 
     int MaxSize = 0, MaxSizeId = 0;
     vector< vector< Point> >::iterator itc = contours.begin();
-    /*for(;itc!=contours.end();){  //remove some contours size <= 100
-        cout << "itc->size(): "<<itc->size()<<endl; 
-        if(itc->size() > MaxSize)
-        {  
-            MaxSize = itc->size();
-            MaxSizeId = Count;
-        }    
-        ++Count;
+
+    for(;itc!=contours.end();){  //remove some contours size <= 100
+      if(itc->size() <= 100)
+        itc = contours.erase(itc);
+      else
         ++itc;
-    }*/
+    }
+
+    if(contours.size() == 0)
+      return false;
+
     for( int i = 0; i< contours.size(); i++ ) // iterate through each contour. 
     {
       double a=contourArea( contours[i],false);  //  Find the area of contour
@@ -243,6 +248,7 @@ void PlateAngleCorrection::rotateImage(const Mat &input, Mat &output, double alp
 
     cout << "contours_poly.size(): "<<contours_poly.size()<<endl;
     cout << "contours_poly[0].size(): "<<contours_poly[0].size()<<endl;
+  
     for( int i = 0; i < contours_poly.size(); i++ )
     {
         vector< Point2f > temp;
@@ -286,6 +292,8 @@ void PlateAngleCorrection::rotateImage(const Mat &input, Mat &output, double alp
     circle(drawing, L4, 3, CV_RGB(0, 0, 255), 3, CV_AA);
    
     imshow("drawing", drawing);
+
+    return true;
 }
 
 

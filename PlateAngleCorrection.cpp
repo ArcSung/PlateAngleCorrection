@@ -8,12 +8,9 @@
 using namespace cv;
 using namespace std;
 
-Point2f L1, L2, L3, L4;
-int tlx, tly, brx, bry;
 
-
-void PlateAngleCorrection(cv::Mat &SrcImg, cv::Mat &Dstimg) {
-  Mat gray_img, bw_img, thr_img;
+void PlateAngleCorrection::Correction(cv::Mat &SrcImg, cv::Mat &Dstimg) {
+  Mat gray_img, bw_img, thr_img, edge_img;
   //show the image on screen
   //namedWindow("OpenCV srcImage", 0);
   preprocess(SrcImg, gray_img, bw_img);
@@ -21,17 +18,35 @@ void PlateAngleCorrection(cv::Mat &SrcImg, cv::Mat &Dstimg) {
   //Mat element(5,5,CV_8U,Scalar(255));
   //imshow("OpenCV bw_img", bw_img);
   //waitKey(0);
-  imshow("OpenCV gray_img", gray_img);
-  imshow("OpenCV bn_img", bw_img);
+  Mat element(3,3,CV_8U,Scalar(255));  
+  erode(bw_img,bw_img,element);
+  //dilate(bw_img,bw_img,element);
 
-  threshold(gray_img, bw_img, 0, 255, CV_THRESH_BINARY | CV_THRESH_OTSU);
+  //blur( bw_img, edge_img, Size(3,3) );
+  //Laplacian( gray_img, edge_img, CV_32F, 3, 1, 0, BORDER_DEFAULT) ;
 
+  //erode(edge_img,edge_img,element);
+  //dilate(edge_img,edge_img,element);  
+  
+  //imshow("OpenCV bn_img", bw_img);
+  //imshow("OpenCV edge_img", edge_img);
+
+  gray_img = gray_img - bw_img - edge_img;
+  line(gray_img, Point(0, 0), Point(gray_img.cols- 1, 0), CV_RGB(0,0,0), 2 );
+  line(gray_img, Point(0, 0), Point(0, gray_img.rows- 1), CV_RGB(0,0,0), 2 );
+  line(gray_img, Point(gray_img.cols- 1, 0), Point(gray_img.cols- 1, gray_img.rows- 1), CV_RGB(0,0,0), 2 );
+  line(gray_img, Point(0, gray_img.rows - 1), Point(gray_img.cols- 1, gray_img.rows- 1), CV_RGB(0,0,0), 2 );
+
+  threshold(gray_img, thr_img, 0, 255, CV_THRESH_BINARY | CV_THRESH_OTSU);
   //imshow("OpenCV gray_img", gray_img);
+  imshow("OpenCV thr_img", thr_img);
+
+  imshow("OpenCV gray_img", gray_img);
   //imshow("OpenCV bw_img", bw_img);
   //waitKey(0);
 
-
-  FindPlateCorner(SrcImg, gray_img, bw_img);
+  //erode(thr_img,thr_img,element);
+  FindPlateCorner(SrcImg, gray_img, thr_img);
 
 
 
@@ -54,19 +69,18 @@ void PlateAngleCorrection(cv::Mat &SrcImg, cv::Mat &Dstimg) {
                 // 變換
   cv::warpPerspective(SrcImg, Dstimg, perspective_matrix, Size(ROIW, ROIH), cv::INTER_LINEAR);
 
-  imshow("OpenCV srcImage", SrcImg);
-  imshow("OpenCV dst_img", Dstimg);
+  //imshow("OpenCV srcImage", SrcImg);
+  //imshow("OpenCV dst_img", Dstimg);
     //imshow("OpenCV gray_img", gray_img);
     //imshow("OpenCV bn_img", bw_img);
 
-  waitKey(0);
 }
 
 
 
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
-void preprocess(cv::Mat imgOriginal, cv::Mat &imgGrayscale, cv::Mat &imgThresh) {
+void PlateAngleCorrection::preprocess(cv::Mat imgOriginal, cv::Mat &imgGrayscale, cv::Mat &imgThresh) {
 	imgGrayscale = extractValue(imgOriginal);
 
 	cv::Mat imgMaxContrastGrayscale = maximizeContrast(imgGrayscale);
@@ -75,11 +89,12 @@ void preprocess(cv::Mat imgOriginal, cv::Mat &imgGrayscale, cv::Mat &imgThresh) 
 
 	cv::GaussianBlur(imgMaxContrastGrayscale, imgBlurred, GAUSSIAN_SMOOTH_FILTER_SIZE, 0);
 
-	cv::adaptiveThreshold(imgBlurred, imgThresh, 255.0, CV_ADAPTIVE_THRESH_GAUSSIAN_C, CV_THRESH_BINARY_INV, ADAPTIVE_THRESH_BLOCK_SIZE, ADAPTIVE_THRESH_WEIGHT);
+	cv::adaptiveThreshold(imgBlurred, imgThresh, 255.0, CV_ADAPTIVE_THRESH_GAUSSIAN_C, 
+    CV_THRESH_BINARY_INV, ADAPTIVE_THRESH_BLOCK_SIZE, ADAPTIVE_THRESH_WEIGHT);
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
-cv::Mat extractValue(cv::Mat imgOriginal) {
+cv::Mat PlateAngleCorrection::extractValue(cv::Mat imgOriginal) {
 	cv::Mat imgHSV;
 	std::vector<cv::Mat> vectorOfHSVImages;
 	cv::Mat imgValue;
@@ -94,7 +109,7 @@ cv::Mat extractValue(cv::Mat imgOriginal) {
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
-cv::Mat maximizeContrast(cv::Mat imgGrayscale) {
+cv::Mat PlateAngleCorrection::maximizeContrast(cv::Mat imgGrayscale) {
 	cv::Mat imgTopHat;
 	cv::Mat imgBlackHat;
 	cv::Mat imgGrayscalePlusTopHat;
@@ -111,7 +126,7 @@ cv::Mat maximizeContrast(cv::Mat imgGrayscale) {
 	return(imgGrayscalePlusTopHatMinusBlackHat);
 }
 
-void rotateImage(const Mat &input, Mat &output, double alpha, double beta, double gamma, double dx, double dy, double dz, double f)
+void PlateAngleCorrection::rotateImage(const Mat &input, Mat &output, double alpha, double beta, double gamma, double dx, double dy, double dz, double f)
   {
     alpha = (alpha - 90.)*CV_PI/180.;
     beta = (beta - 90.)*CV_PI/180.;
@@ -172,7 +187,7 @@ void rotateImage(const Mat &input, Mat &output, double alpha, double beta, doubl
     return(tempMat);
   }
 
-  void FindPlateCorner(Mat image, Mat mgray, Mat bin_img){
+  void PlateAngleCorrection::FindPlateCorner(Mat image, Mat mgray, Mat bin_img){
     //cv::threshold(mgray, bin_img, 0, 255, cv::THRESH_BINARY|cv::THRESH_OTSU);
     std::vector<std::vector<cv::Point> > contours;
     std::vector<cv::Vec4i> hierarchy;
@@ -182,14 +197,13 @@ void rotateImage(const Mat &input, Mat &output, double alpha, double beta, doubl
     hierarchy,
     cv::RETR_TREE,
     cv::CHAIN_APPROX_SIMPLE);
-    int maxid = 0;
-    int maxSize = 0;
 
     Mat drawing = Mat::zeros( bin_img.size(), CV_8UC3 );
 
-    int MaxSize = 0, MaxSizeId = 0, Count = 0;
+    int MaxSize = 0, MaxSizeId = 0;
     vector< vector< Point> >::iterator itc = contours.begin();
-    for(;itc!=contours.end();){  //remove some contours size <= 100
+    /*for(;itc!=contours.end();){  //remove some contours size <= 100
+        cout << "itc->size(): "<<itc->size()<<endl; 
         if(itc->size() > MaxSize)
         {  
             MaxSize = itc->size();
@@ -197,11 +211,24 @@ void rotateImage(const Mat &input, Mat &output, double alpha, double beta, doubl
         }    
         ++Count;
         ++itc;
+    }*/
+    for( int i = 0; i< contours.size(); i++ ) // iterate through each contour. 
+    {
+      double a=contourArea( contours[i],false);  //  Find the area of contour
+      if(a>MaxSize){
+        MaxSize=a;
+        MaxSizeId=i;                //Store the index of largest contour
+        //bounding_rect=boundingRect(contours[i]); // Find the bounding rectangle for biggest contour
+      }
     }
+     
+    //drawContours( drawing, contours,MaxSizeId, Scalar(255.0, 255.0, 255.0), CV_FILLED, 8, hierarchy ); // D  
 
     vector< vector< Point> > contours_poly(contours.size());
     approxPolyDP( Mat(contours[MaxSizeId]), contours_poly[MaxSizeId], 3, true ); // let contours more smooth
-    drawContours( drawing, contours_poly, 1, Scalar(255, 255, 255), 2, 8, hierarchy, 0, Point() );
+    //cout << "contours_poly[MaxSizeId]->size(): "<<contours_poly[MaxSizeId]->size()<<endl; 
+    //drawContours( drawing, contours_poly, 1, Scalar(255, 255, 255), 2, 8, hierarchy, 0, Point() );
+    drawContours(drawing, contours_poly, -1, Scalar(255.0, 255.0, 255.0));
 
     cout << "contours_poly.size(): "<<contours_poly.size()<<endl;
     cout << "contours_poly[0].size(): "<<contours_poly[0].size()<<endl;

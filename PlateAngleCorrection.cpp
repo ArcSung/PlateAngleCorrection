@@ -14,34 +14,16 @@ using namespace std;
 bool PlateAngleCorrection::Correction(cv::Mat &SrcImg, cv::Mat &Dstimg) {
   Mat gray_img, bw_img, thr_img, edge_img;
   Mat sobelX, sobelY; 
-  //show the image on screen
-  //namedWindow("OpenCV srcImage", 0);
+
   preprocess(SrcImg, gray_img, bw_img);
-
-  //equalizeHist( gray_img, gray_img );
-
-  //Mat element(5,5,CV_8U,Scalar(255));
-  //imshow("OpenCV bw_img", bw_img);
-  //waitKey(0);
   Mat element(3,3,CV_8U,Scalar(255));  
-  erode(bw_img,bw_img,element);
-  //dilate(bw_img,bw_img,element);
   Sobel(gray_img,sobelX,CV_8U,1,0);
   Sobel(gray_img,sobelY,CV_8U,0,1);
 
   edge_img= abs(sobelX)+abs(sobelY);  
 
-  //blur( bw_img, edge_img, Size(3,3) );
-  //sobel(gray_img,edge_img,1,0);
-  //Canny(gray_img, edge_img, 0, 0, 3);
-  //Laplacian( gray_img, edge_img, 5) ;
-  //convertScaleAbs(edge_img, edge_img);
-
-  //erode(edge_img,edge_img,element);
-  //dilate(edge_img,edge_img,element);  
-  
-  //imshow("OpenCV bn_img", bw_img);
-  //
+  dilate(edge_img,edge_img,element);  
+  erode(edge_img,edge_img,element);
 
   gray_img = gray_img - edge_img ;
   line(gray_img, Point(0, 0), Point(gray_img.cols- 1, 0), CV_RGB(0,0,0), 2 );
@@ -51,28 +33,11 @@ bool PlateAngleCorrection::Correction(cv::Mat &SrcImg, cv::Mat &Dstimg) {
 
   threshold(gray_img, thr_img, 0, 255, CV_THRESH_BINARY | CV_THRESH_OTSU);
 
-#if Debug_show  
-  //imshow("OpenCV gray_img", gray_img);
-  imshow("OpenCV edge_img", edge_img);
-  imshow("OpenCV thr_img", thr_img);
-  imshow("OpenCV gray_img", gray_img);
-  //imshow("OpenCV bw_img", bw_img);
-  //waitKey(0);
-#endif  
-
-  //erode(thr_img,thr_img,element);
   if(!FindPlateCorner(SrcImg, gray_img, thr_img))
     return false;
 
-
-  /* perspective matrix*/
-  tlx = (L1.x < L4.x) ? L1.x : L4.x;
-  tly = (L1.y < L2.y) ? L1.y : L2.y;
-  brx = (L3.x > L2.x) ? L3.x : L2.x;
-  bry = (L3.y > L4.y) ? L3.y : L4.y;
-
-  int ROIW = brx - tlx - 1;
-  int ROIH = bry - tly - 1;
+  int ROIW = L2.x - L1.x - 1;
+  int ROIH = L4.y - L1.y - 1;
 
   if(ROIW <= 0 || ROIH <= 0)
     return false;
@@ -85,8 +50,16 @@ bool PlateAngleCorrection::Correction(cv::Mat &SrcImg, cv::Mat &Dstimg) {
 
   cv::Mat perspective_matrix = cv::getPerspectiveTransform(pts1, pts2);
                 
-                // 變換
+  // 變換
   cv::warpPerspective(SrcImg, Dstimg, perspective_matrix, Size(ROIW, ROIH), cv::INTER_LINEAR);
+
+#if Debug_show  
+  imshow("OpenCV edge_img", edge_img);
+  imshow("OpenCV thr_img", thr_img);
+  imshow("OpenCV gray_img", gray_img);
+  imshow("OpenCV Dstimg", Dstimg);
+  //waitKey(0);
+#endif  
 
   return true;
 }
@@ -203,7 +176,6 @@ void PlateAngleCorrection::rotateImage(const Mat &input, Mat &output, double alp
   }
 
   bool PlateAngleCorrection::FindPlateCorner(Mat image, Mat mgray, Mat bin_img){
-    //cv::threshold(mgray, bin_img, 0, 255, cv::THRESH_BINARY|cv::THRESH_OTSU);
     std::vector<std::vector<cv::Point> > contours;
     std::vector<cv::Vec4i> hierarchy;
 
@@ -228,70 +200,58 @@ void PlateAngleCorrection::rotateImage(const Mat &input, Mat &output, double alp
     if(contours.size() == 0)
       return false;
 
+    //Find the max contour
     for( int i = 0; i< contours.size(); i++ ) // iterate through each contour. 
     {
       double a=contourArea( contours[i],false);  //  Find the area of contour
       if(a>MaxSize){
         MaxSize=a;
         MaxSizeId=i;                //Store the index of largest contour
-        //bounding_rect=boundingRect(contours[i]); // Find the bounding rectangle for biggest contour
       }
-    }
-     
-    //drawContours( drawing, contours,MaxSizeId, Scalar(255.0, 255.0, 255.0), CV_FILLED, 8, hierarchy ); // D  
+    } 
 
     vector< vector< Point> > contours_poly(contours.size());
     approxPolyDP( Mat(contours[MaxSizeId]), contours_poly[MaxSizeId], 3, true ); // let contours more smooth
-    //cout << "contours_poly[MaxSizeId]->size(): "<<contours_poly[MaxSizeId]->size()<<endl; 
-    //drawContours( drawing, contours_poly, 1, Scalar(255, 255, 255), 2, 8, hierarchy, 0, Point() );
-    drawContours(drawing, contours_poly, -1, Scalar(255.0, 255.0, 255.0));
-
-    cout << "contours_poly.size(): "<<contours_poly.size()<<endl;
-    cout << "contours_poly[0].size(): "<<contours_poly[0].size()<<endl;
   
-    for( int i = 0; i < contours_poly.size(); i++ )
-    {
-        vector< Point2f > temp;
-        int minsum = 10000, maxsum = 0, mindiff = 10000, maxdiff = 0;
-        int tl1, br1;
+    //find 4 conner in contour
+    int minsum = 10000, maxsum = 0, mindiff = 10000, maxdiff = 0;
 
-        for(int j=0;j<contours_poly[i].size();j++){
-            //temp.push_back( Point2f(contours_poly[i][j].x, contours_poly[i][j].y) );
-            //circle(drawing, cvPoint(contours_poly[i][j].x, contours_poly[i][j].y), 3, CV_RGB(0, 255, 0), 3, CV_AA);
-            if(contours_poly[i][j].x+ contours_poly[i][j].y < minsum)
-            {
-                minsum = contours_poly[i][j].x+ contours_poly[i][j].y;
-                L1 = Point2f(contours_poly[i][j].x, contours_poly[i][j].y);
-                tl1 = j;
-            }
-
-            if(contours_poly[i][j].x+ contours_poly[i][j].y > maxsum)
-            {
-                maxsum = contours_poly[i][j].x+ contours_poly[i][j].y;
-                L3 = Point2f(contours_poly[i][j].x, contours_poly[i][j].y);
-                br1 = j;
-            }
-
-            if(contours_poly[i][j].x - contours_poly[i][j].y < mindiff)
-            {
-                mindiff = contours_poly[i][j].x - contours_poly[i][j].y;
-                L4 = Point2f(contours_poly[i][j].x, contours_poly[i][j].y);
-            }
-
-            if(contours_poly[i][j].x - contours_poly[i][j].y > maxdiff)
-            {
-                maxdiff = contours_poly[i][j].x - contours_poly[i][j].y;
-                L2 = Point2f(contours_poly[i][j].x, contours_poly[i][j].y);
-            }
-        }
+    for(int j=0;j<contours_poly[MaxSizeId].size();j++){
+      if(contours_poly[MaxSizeId][j].x+ contours_poly[MaxSizeId][j].y < minsum)
+      {
+        //The left top point, x + y is minimum
+        minsum = contours_poly[MaxSizeId][j].x+ contours_poly[MaxSizeId][j].y;
+        L1 = Point2f(contours_poly[MaxSizeId][j].x, contours_poly[MaxSizeId][j].y);
+      }
+      if(contours_poly[MaxSizeId][j].x+ contours_poly[MaxSizeId][j].y > maxsum)
+      {
+        //The right bottom point, x + y is maxmum
+        maxsum = contours_poly[MaxSizeId][j].x+ contours_poly[MaxSizeId][j].y;
+        L3 = Point2f(contours_poly[MaxSizeId][j].x, contours_poly[MaxSizeId][j].y);
+      }
+      if(contours_poly[MaxSizeId][j].x - contours_poly[MaxSizeId][j].y < mindiff)
+      {
+        //The left bottom point, x - y is minmum
+        mindiff = contours_poly[MaxSizeId][j].x - contours_poly[MaxSizeId][j].y;
+        L4 = Point2f(contours_poly[MaxSizeId][j].x, contours_poly[MaxSizeId][j].y);
+      }
+      if(contours_poly[MaxSizeId][j].x - contours_poly[MaxSizeId][j].y > maxdiff)
+      {
+        //The right up point, x - y is maxmum
+        maxdiff = contours_poly[MaxSizeId][j].x - contours_poly[MaxSizeId][j].y;
+        L2 = Point2f(contours_poly[MaxSizeId][j].x, contours_poly[MaxSizeId][j].y);
+      }
     }
+  
 
+#if Debug_show 
+    drawContours(drawing, contours_poly, -1, Scalar(255.0, 255.0, 255.0));
     circle(drawing, L1, 3, CV_RGB(0, 0, 255), 3, CV_AA);
     circle(drawing, L2, 3, CV_RGB(0, 0, 255), 3, CV_AA);
     circle(drawing, L3, 3, CV_RGB(0, 0, 255), 3, CV_AA);
-    circle(drawing, L4, 3, CV_RGB(0, 0, 255), 3, CV_AA);
-   
+    circle(drawing, L4, 3, CV_RGB(0, 0, 255), 3, CV_AA);    
     imshow("drawing", drawing);
+#endif    
 
     return true;
 }
